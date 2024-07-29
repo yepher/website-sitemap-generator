@@ -63,12 +63,12 @@ def get_page_details(driver, url, screenshot_dir):
     capture_full_page_screenshot(driver, screenshot_path)
 
     links = driver.find_elements(By.TAG_NAME, 'a')
-    hrefs = []
+    hrefs = set()  # Use a set to store unique hrefs
     for link in links:
         try:
             href = link.get_attribute('href')
             if href is not None and href.startswith('http'):
-                hrefs.append(href)
+                hrefs.add(href)
         except StaleElementReferenceException:
             continue
 
@@ -76,7 +76,7 @@ def get_page_details(driver, url, screenshot_dir):
     content_size = len(response.content) / (1024 * 1024)
     http_status_code = response.status_code
 
-    return hrefs, load_time, http_status_code, content_size, screenshot_path, full_width, full_height
+    return sorted(hrefs), load_time, http_status_code, content_size, screenshot_path, full_width, full_height
 
 def crawl_site(driver, url, screenshot_dir, max_depth=2, current_depth=0, visited=None):
     if visited is None:
