@@ -40,16 +40,6 @@ The script can be run from the command line. You need to provide the URL of the 
 
 ### Example
 
-Initial setup
-```sh
-python -m venv ./.venv
-source .venv/bin/activate
-pip install --upgrade pip
-
-pip install -r requirements.txt
-```
-
-
 To generate a sitemap for `https://example.com` with a default screen width:
 ```sh
 python script.py https://example.com
