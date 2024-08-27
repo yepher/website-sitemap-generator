@@ -2,3 +2,4 @@ selenium
 webdriver-manager
 pillow
 requests
+html2text
