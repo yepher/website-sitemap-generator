@@ -8,7 +8,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import WebDriverException
-
+import hashlib
 import requests
 from requests.exceptions import ConnectionError, Timeout
 from selenium.common.exceptions import StaleElementReferenceException, NoSuchElementException
@@ -16,6 +16,7 @@ import base64
 import html2text
 from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
+from bs4 import BeautifulSoup
 
 # Create a session and add the cookie
 session = requests.Session()
@@ -74,16 +75,41 @@ def extract_text_from_page(driver, url, text_dir):
     driver.get(url)
     wait_for_full_page_load(driver)
     accept_cookies(driver)
-    html_content = driver.find_element(By.TAG_NAME, 'body').get_attribute('outerHTML')
-    markdown_content = convert_html_to_markdown(html_content)
+    
+    # Get the full HTML content
+    html_content = driver.page_source
+    
+    # Parse the HTML with BeautifulSoup
+    soup = BeautifulSoup(html_content, 'html.parser')
+    
+    # Find the main content
+    main_content = soup.find('main')
+    
+    if main_content:
+        # Remove header and footer if they exist within main
+        for tag in main_content.find_all(['header', 'footer']):
+            tag.decompose()
+        
+        # Convert the main content to markdown
+        markdown_content = convert_html_to_markdown(str(main_content))
+    else:
+        # If no main tag is found, use the body content as fallback
+        body_content = soup.find('body')
+        if body_content:
+            # Remove header and footer from body
+            for tag in body_content.find_all(['header', 'footer']):
+                tag.decompose()
+            markdown_content = convert_html_to_markdown(str(body_content))
+        else:
+            markdown_content = "No content found"
+
+    # Create the file path
     text_file_path = os.path.join(text_dir, f"{url.replace('https://', '').replace('http://', '').replace('/', '_')}.md")
 
-    # Remove top of file until first line that starts with '#' so that is the first line fo the file
-    lines = markdown_content.split('\n')
-    first_line_with_hash = next((i for i, line in enumerate(lines) if line.startswith('#')), len(lines))
-    markdown_content = '\n'.join(lines[first_line_with_hash:])  
-    with open(text_file_path, "w") as file:
+    # Write the markdown content to the file
+    with open(text_file_path, "w", encoding='utf-8') as file:
         file.write(markdown_content)
+
     return text_file_path
 
 def get_page_details(driver, url, screenshot_dir, text_dir):
@@ -181,6 +207,7 @@ def crawl_site(driver, url, screenshot_dir, text_dir, base_domain, max_depth=2, 
 def create_sitemap(url, max_depth=2, screen_width="1366"):
     options = Options()
     options.headless = True
+    options.add_argument("--headless")
     options.add_argument('--disable-gpu')
     options.add_argument('--no-sandbox')
     options.add_argument(f'--window-size={screen_width},1080')
@@ -223,6 +250,7 @@ if __name__ == "__main__":
 
     sitemap = create_sitemap(website_url, screen_width=screen_width)
     base_dir = f"{urlparse(website_url).netloc.replace('.', '_')}"
+    base_dir = os.path.join("scrape", base_dir)
     
     # Create the base directory if it doesn't exist
     os.makedirs(base_dir, exist_ok=True)
@@ -236,6 +264,7 @@ if __name__ == "__main__":
     # Load additional pages from sitemap.xml
     options = Options()
     options.headless = True
+    options.add_argument("--headless")
     options.add_argument('--disable-gpu')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
@@ -254,5 +283,28 @@ if __name__ == "__main__":
 
     with open(sitemap_path, 'w') as f:
         json.dump(sitemap, f, indent=4)
+
+    file_checksums = {}
+    for root, dirs, files in os.walk(base_dir):
+        for file in files:
+            if file.endswith('.md'):
+                file_path = os.path.join(root, file)
+                with open(file_path, 'rb') as f:
+                    file_content = f.read()
+                    file_checksum = hashlib.md5(file_content).hexdigest()
+
+                    if file_checksum in file_checksums:
+                        # If this checksum already exists, compare file names
+                        existing_file = file_checksums[file_checksum]
+                        if len(file) < len(existing_file):
+                            # Current file has a shorter name, delete the existing one
+                            os.remove(os.path.join(root, existing_file))
+                            file_checksums[file_checksum] = file
+                        else:
+                            # Existing file has a shorter or equal length name, delete the current one
+                            os.remove(file_path)
+                    else:
+                        # New checksum, add to dictionary
+                        file_checksums[file_checksum] = file
 
     print(json.dumps(sitemap, indent=4))
