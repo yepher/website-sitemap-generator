@@ -3,3 +3,5 @@ webdriver-manager
 pillow
 requests
 html2text
+argparse
+markdown-it-py[plugins]
