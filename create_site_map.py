@@ -1,3 +1,5 @@
+import platform
+import subprocess
 import json
 import time
 import os
@@ -17,6 +19,7 @@ import html2text
 from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
+from webdriver_manager.core.os_manager import ChromeType
 
 # Create a session and add the cookie
 session = requests.Session()
@@ -204,16 +207,47 @@ def crawl_site(driver, url, screenshot_dir, text_dir, base_domain, max_depth=2, 
 
     return site_map
 
-def create_sitemap(url, max_depth=2, screen_width="1366"):
+def is_arm_mac():
+    if platform.system() != "Darwin":
+        return False
+    try:
+        output = subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"]).decode("utf-8")
+        return "Apple" in output
+    except:
+        return False
+    
+def get_driver(screen_width):
     options = Options()
     options.headless = True
     options.add_argument("--headless")
     options.add_argument('--disable-gpu')
     options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
     options.add_argument(f'--window-size={screen_width},1080')
 
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
+    options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3')
+
+    if not is_arm_mac():
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
+        return driver
+
+    #Use ChromeType.CHROMIUM for ARM64 Macs
+    driver_path = ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install()
+    service = Service(driver_path)
+    try:
+        driver = webdriver.Chrome(service=service, options=options)
+    except Exception as e:
+        print(f"Error initializing Chrome driver: {e}")
+        print("Attempting to use Selenium Manager...")
+        options.add_argument("--use-selenium-manager")
+        driver = webdriver.Chrome(options=options)
+
+    return driver
+
+def create_sitemap(url, max_depth=2, screen_width="1366"):
+
+    driver = get_driver(screen_width)
 
     parsed_url = urlparse(url)
     base_domain = parsed_url.netloc
@@ -261,19 +295,7 @@ if __name__ == "__main__":
 
     print(json.dumps(sitemap, indent=4))
 
-    # Load additional pages from sitemap.xml
-    options = Options()
-    options.headless = True
-    options.add_argument("--headless")
-    options.add_argument('--disable-gpu')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument(f'--window-size={screen_width},1080')
-
-    options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3')
-
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
+    driver = get_driver(screen_width)
 
     try:
         visited = set(sitemap.keys())
