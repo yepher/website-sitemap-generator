@@ -20,6 +20,8 @@ from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 from webdriver_manager.core.os_manager import ChromeType
+import re
+import urllib.parse
 
 # Create a session and add the cookie
 session = requests.Session()
@@ -78,6 +80,29 @@ def convert_html_to_markdown(html_content):
     # Remove extra newlines between URL and its text
     markdown_content = markdown_content.replace(']\n(', '](')
     
+    # Fix image URLs
+    def fix_image_url(match):
+        alt_text = match.group(1)
+        url = match.group(2)
+        decoded_url = urllib.parse.unquote(url)
+        # Extract the actual image URL from the query parameter
+        actual_url = urllib.parse.parse_qs(urllib.parse.urlparse(decoded_url).query).get('url', [None])[0]
+        if actual_url:
+            return f'![{alt_text}]({actual_url})'
+        else:
+            return f'![{alt_text}]({url})'
+
+    markdown_content = re.sub(r'!\[(.*?)\]\((/_next/image\?.*?)\)', fix_image_url, markdown_content)
+    
+    # Remove multiple consecutive blank lines
+    markdown_content = re.sub(r'\n{3,}', '\n\n', markdown_content)
+    
+    # Ensure proper spacing around headers
+    markdown_content = re.sub(r'(\n#+.*)\n+', r'\1\n\n', markdown_content)
+    
+    # Remove spaces before newlines
+    markdown_content = re.sub(r' +\n', '\n', markdown_content)
+    
     return markdown_content
 
 def extract_text_from_page(driver, url, text_dir):
@@ -111,6 +136,9 @@ def extract_text_from_page(driver, url, text_dir):
             markdown_content = convert_html_to_markdown(str(body_content))
         else:
             markdown_content = "No content found"
+
+    # Add the source line at the top of the markdown content
+    markdown_content = f"[source]({url})\n\n{markdown_content}"
 
     # Create the file path
     text_file_path = os.path.join(text_dir, f"{url.replace('https://', '').replace('http://', '').replace('/', '_')}.md")
