@@ -71,7 +71,13 @@ def accept_cookies(driver):
         pass
 
 def convert_html_to_markdown(html_content):
-    markdown_content = html2text.html2text(html_content)
+    h = html2text.HTML2Text()
+    h.body_width = 0  # Disable line wrapping
+    markdown_content = h.handle(html_content)
+    
+    # Remove extra newlines between URL and its text
+    markdown_content = markdown_content.replace(']\n(', '](')
+    
     return markdown_content
 
 def extract_text_from_page(driver, url, text_dir):
