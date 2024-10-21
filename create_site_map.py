@@ -298,7 +298,7 @@ def create_sitemap(url, max_depth=2, screen_width="1366"):
 
     return site_map
 
-def load_additional_pages_from_sitemap(driver, base_url, site_map, visited, screenshot_dir, text_dir):
+def load_additional_pages_from_sitemap(driver, base_url, site_map, visited, screenshot_dir, text_dir, base_domain):
     sitemap_url = os.path.join(base_url, 'sitemap.xml')
     response = session.get(sitemap_url)  # Use the session with the cookie
     if response.status_code == 200:
@@ -306,7 +306,7 @@ def load_additional_pages_from_sitemap(driver, base_url, site_map, visited, scre
         for url_element in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}url/{http://www.sitemaps.org/schemas/sitemap/0.9}loc"):
             url = url_element.text
             if url not in visited:
-                site_map.update(crawl_site(driver, url, screenshot_dir, text_dir, max_depth=1, visited=visited))
+                site_map.update(crawl_site(driver, url, screenshot_dir, text_dir, base_domain, max_depth=1, visited=visited))
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -333,7 +333,9 @@ if __name__ == "__main__":
 
     try:
         visited = set(sitemap.keys())
-        load_additional_pages_from_sitemap(driver, website_url, sitemap, visited, os.path.join(base_dir, f"screens_{screen_width}"), os.path.join(base_dir, f"texts_{screen_width}"))
+        parsed_url = urlparse(website_url)
+        base_domain = parsed_url.netloc
+        load_additional_pages_from_sitemap(driver, website_url, sitemap, visited, os.path.join(base_dir, f"screens_{screen_width}"), os.path.join(base_dir, f"texts_{screen_width}"), base_domain)
     finally:
         driver.quit()
 
