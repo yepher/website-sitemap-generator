@@ -200,15 +200,19 @@ def get_page_details(driver, url, screenshot_dir, text_dir):
     # If all retries fail, return default values
     return sorted(hrefs), load_time, None, None, screenshot_path, text_file_path, full_width, full_height
 
-def crawl_site(driver, url, screenshot_dir, text_dir, base_domain, max_depth=2, current_depth=0, visited=None):
+def crawl_site(driver, url, screenshot_dir, text_dir, base_domain, max_depth=2, current_depth=0, visited=None, exclude_translations=False):
     if visited is None:
         visited = set()
     if current_depth > max_depth or url in visited:
         return {}
 
-    # Check if the URL belongs to the base domain or its subdomains
     parsed_url = urlparse(url)
     if not (parsed_url.netloc == base_domain or parsed_url.netloc.endswith('.' + base_domain)):
+        return {}
+
+    # Check if the URL should be excluded based on translation
+    if exclude_translations and is_translated_url(parsed_url.path):
+        print(f"Skipping translated page: {url}")
         return {}
 
     visited.add(url)
@@ -237,7 +241,8 @@ def crawl_site(driver, url, screenshot_dir, text_dir, base_domain, max_depth=2, 
 
     for link in links:
         if link not in visited:
-            site_map.update(crawl_site(driver, link, screenshot_dir, text_dir, base_domain, max_depth, current_depth + 1, visited))
+            # Pass the exclude_translations parameter to recursive calls
+            site_map.update(crawl_site(driver, link, screenshot_dir, text_dir, base_domain, max_depth, current_depth + 1, visited, exclude_translations))
 
     return site_map
 
@@ -279,8 +284,7 @@ def get_driver(screen_width):
 
     return driver
 
-def create_sitemap(url, max_depth=2, screen_width="1366"):
-
+def create_sitemap(url, max_depth=2, screen_width="1366", exclude_translations=False):
     driver = get_driver(screen_width)
 
     parsed_url = urlparse(url)
@@ -292,31 +296,49 @@ def create_sitemap(url, max_depth=2, screen_width="1366"):
     os.makedirs(text_dir, exist_ok=True)
 
     try:
-        site_map = crawl_site(driver, url, screenshot_dir, text_dir, base_domain, max_depth)
+        site_map = crawl_site(driver, url, screenshot_dir, text_dir, base_domain, max_depth, exclude_translations=exclude_translations)
     finally:
         driver.quit()
 
     return site_map
 
-def load_additional_pages_from_sitemap(driver, base_url, site_map, visited, screenshot_dir, text_dir, base_domain):
+def load_additional_pages_from_sitemap(driver, base_url, site_map, visited, screenshot_dir, text_dir, base_domain, exclude_translations):
     sitemap_url = os.path.join(base_url, 'sitemap.xml')
     response = session.get(sitemap_url)  # Use the session with the cookie
     if response.status_code == 200:
         root = ET.fromstring(response.content)
         for url_element in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}url/{http://www.sitemaps.org/schemas/sitemap/0.9}loc"):
             url = url_element.text
-            if url not in visited:
-                site_map.update(crawl_site(driver, url, screenshot_dir, text_dir, base_domain, max_depth=1, visited=visited))
+            parsed_url = urlparse(url)
+            if url not in visited and (not exclude_translations or not is_translated_url(parsed_url.path)):
+                site_map.update(crawl_site(driver, url, screenshot_dir, text_dir, base_domain, max_depth=1, visited=visited, exclude_translations=exclude_translations))
+
+def is_translated_url(path):
+    # This function checks if the URL path indicates a translated page
+    # You can customize this based on your site's URL structure
+    language_codes = [
+        'fr', 'es', 'de', 'it', 'ja', 'ko', 'zh',
+        'sg', 'id', 'th', 'vi', 'ms', 'ar', 'hi', 
+        'bn', 'ur', 'fa', 'tr', 'nl', 'pl', 'cs', 
+        'sk', 'hu', 'ro', 'bg', 'sr', 'hr', 'sl', 
+        'mk', 'bg', 'sr', 'hr', 'sl', 'mk', 'en-nl',
+        'pl', 'nl-nl', 'en-es'
+    ]
+    parts = path.split('/')
+    return any(part in language_codes for part in parts)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python script.py <URL> [screen_width]")
+        print("Usage: python script.py <URL> [screen_width] [exclude_translations]")
         sys.exit(1)
 
     website_url = sys.argv[1]
     screen_width = sys.argv[2] if len(sys.argv) > 2 else "1366"
+    exclude_translations = sys.argv[3].lower() == 'true' if len(sys.argv) > 3 else False
+    if exclude_translations:
+        print("Excluding translated pages")
 
-    sitemap = create_sitemap(website_url, screen_width=screen_width)
+    sitemap = create_sitemap(website_url, screen_width=screen_width, exclude_translations=exclude_translations)
     base_dir = f"{urlparse(website_url).netloc.replace('.', '_')}"
     base_dir = os.path.join("scrape", base_dir)
     
@@ -335,7 +357,7 @@ if __name__ == "__main__":
         visited = set(sitemap.keys())
         parsed_url = urlparse(website_url)
         base_domain = parsed_url.netloc
-        load_additional_pages_from_sitemap(driver, website_url, sitemap, visited, os.path.join(base_dir, f"screens_{screen_width}"), os.path.join(base_dir, f"texts_{screen_width}"), base_domain)
+        load_additional_pages_from_sitemap(driver, website_url, sitemap, visited, os.path.join(base_dir, f"screens_{screen_width}"), os.path.join(base_dir, f"texts_{screen_width}"), base_domain, exclude_translations)
     finally:
         driver.quit()
 
