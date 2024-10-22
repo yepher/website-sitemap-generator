@@ -322,7 +322,15 @@ def is_translated_url(path):
         'bn', 'ur', 'fa', 'tr', 'nl', 'pl', 'cs', 
         'sk', 'hu', 'ro', 'bg', 'sr', 'hr', 'sl', 
         'mk', 'bg', 'sr', 'hr', 'sl', 'mk', 'en-nl',
-        'pl', 'nl-nl', 'en-es'
+        'pl', 'nl-nl', 'en-es', 'id-id', 'nl-nl',
+        'fr-fr', 'en-fr', 'en-ca', 'en-gb', 'en-au', 
+        'en-nz', 'en-sg', 'en-hk', 'en-in', 'en-ph', 
+        'en-id', 'en-my', 'en-th', 'en-tw', 'en-kr', 
+        'en-jp', 'en-cn', 'en-tr', 'en-ae', 'en-sa', 
+        'en-eg', 'en-il', 'en-ng', 'en-za', 'en-ke', 
+        'en-ug', 'en-zm', 'en-zw', 'en-gh', 'en-ng', 
+        'en-za', 'en-ke', 'en-ug', 'en-zm', 'en-zw', 
+        'en-gh'
     ]
     parts = path.split('/')
     return any(part in language_codes for part in parts)

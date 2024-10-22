@@ -6,3 +6,9 @@ html2text
 argparse
 markdown-it-py[plugins]
 bs4
+
+
+# Check Spell
+langdetect
+language-tool-python
+setuptools
