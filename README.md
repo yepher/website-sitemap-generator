@@ -47,7 +47,7 @@ python script.py https://example.com
 
 To generate a sitemap for `https://example.com` with a specified screen width:
 ```sh
-python script.py https://example.com 375
+python create_site_map.py https://example.com 375
 ```
 
 The sitemap will be saved as `sitemap.json` in the current directory.
